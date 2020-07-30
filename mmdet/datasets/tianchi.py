@@ -148,7 +148,7 @@ class TianchiImageDataset(CocoDataset):
                     self.tianchi.load_dicoms(dicom_id)[0])
                 dicom_id = dicom_info.pop('id')
                 dicom_info['dicom_id'] = dicom_id
-                info.updata(dicom_info)
+                info.update(dicom_info)
 
             data_infos.append(info)
         return data_infos
@@ -211,6 +211,7 @@ class TianchiImageDataset(CocoDataset):
         return self.pipeline(results)
 
     def prepare_test_img(self, idx):
+        # TODO: smart prepare test img without ext info
         data_info = self.data_infos[idx]
         results = dict(img_info=data_info)
         self.pre_pipeline(results)
@@ -231,3 +232,9 @@ class TianchiImageDataset(CocoDataset):
         y2 = point[1] + width / 2.
 
         return [x1, y1, x2, y2]
+
+    def bbox2center(self, bbox):
+        x = (bbox[0] + bbox[2]) / 2.
+        y = (bbox[1] + bbox[3]) / 2.
+
+        return [x, y]
