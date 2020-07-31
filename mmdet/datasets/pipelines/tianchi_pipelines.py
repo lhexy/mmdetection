@@ -13,11 +13,28 @@ class TianchiLoadAnnotations(LoadAnnotations):
     def __init__(self,
                  with_point=True,
                  with_bbox=True,
+                 bbox_size=(40, 30),
                  with_label=True,
                  with_part_inds=True):
         super().__init__(with_bbox, with_label)
         self.with_point = with_point
+        self.bbox_size = bbox_size
         self.with_part_inds = with_part_inds
+
+    def _load_bboxes(self, results):
+        """Convert points to bboxes.
+        """
+        points = results['gt_points'].copy()
+        bboxes = np.zeros((points.shape[0], 4), dtype=np.float32)
+
+        bboxes[:, 0] = points[:, 0] - self.bbox_size[0] / 2.
+        bboxes[:, 1] = points[:, 1] - self.bbox_size[1] / 2.
+        bboxes[:, 2] = points[:, 0] + self.bbox_size[0] / 2.
+        bboxes[:, 3] = points[:, 1] + self.bbox_size[1] / 2.
+
+        results['gt_bboxes'] = bboxes
+        results['bbox_fields'].append('gt_bboxes')
+        return results
 
     def _load_points(self, results):
         """Private function to load point annotations.

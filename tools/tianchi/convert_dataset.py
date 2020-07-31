@@ -13,8 +13,8 @@ PARTS = ('T12-L1', 'L1', 'L1-L2', 'L2', 'L2-L3', 'L3', 'L3-L4', 'L4', 'L4-L5',
 DISC_PARTS = ('T12-L1', 'L1-L2', 'L2-L3', 'L3-L4', 'L4-L5', 'L5-S1')
 VERTEBRA_PARTS = ('L1', 'L2', 'L3', 'L4', 'L5')
 
-CLASSES = (('disc', 'v1'), ('disc', 'v2'), ('disc', 'v3'), ('disc', 'v4'),
-           ('disc', 'v5'), ('vertebra', 'v1'), ('vertebra', 'v2'))
+CLASSES = ('disc: v1', 'disc: v2', 'disc: v3', 'disc: v4', 'disc: v5',
+           'vertebra: v1', 'vertebra: v2')
 
 OFFICIAL_ANNS = {
     'lumbar_train150': 'annotations/lumbar_train150_annotation.json',
@@ -194,7 +194,7 @@ def get_cat_id(tag, code):
     Returns:
         category_id (int): 1-based category id in categories.
     """
-    return CLASSES.index((tag, code)) + 1
+    return CLASSES.index(': '.join((tag, code))) + 1
 
 
 def load_official_anns(points, study_id, ann_id):
@@ -366,8 +366,8 @@ def main():
     categories = []
     for i, category in enumerate(CLASSES):
         cat = dict(id=i + 1)  # cat_id starts from 1
-        cat['tag'] = category[0]  # disc, vertebra
-        cat['code'] = category[1]  # v1, v2, v3, v4, v5
+        cat['tag'] = category.split(':')[0].strip()  # disc, vertebra
+        cat['code'] = category.split(':')[1].strip()  # v1, v2, v3, v4, v5
         categories.append(cat)
 
     # Step. 5 (optional): load official annotations
