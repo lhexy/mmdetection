@@ -5,7 +5,7 @@ from .custom import CustomDataset
 from .dataset_wrappers import (ClassBalancedDataset, ConcatDataset,
                                RepeatDataset)
 from .deepfashion import DeepFashionDataset
-from .lvis import LVISDataset
+from .lvis import LVISDataset, LVISV1Dataset, LVISV05Dataset
 from .samplers import DistributedGroupSampler, DistributedSampler, GroupSampler
 from .voc import VOCDataset
 from .wider_face import WIDERFaceDataset
@@ -14,9 +14,9 @@ from .tianchi_lumbar import TianchiImageDataset
 
 __all__ = [
     'CustomDataset', 'XMLDataset', 'CocoDataset', 'DeepFashionDataset',
-    'VOCDataset', 'CityscapesDataset', 'LVISDataset', 'GroupSampler',
-    'DistributedGroupSampler', 'DistributedSampler', 'build_dataloader',
-    'ConcatDataset', 'RepeatDataset', 'ClassBalancedDataset',
-    'WIDERFaceDataset', 'DATASETS', 'PIPELINES', 'build_dataset',
-    'TianchiImageDataset'
+    'VOCDataset', 'CityscapesDataset', 'LVISDataset', 'LVISV05Dataset',
+    'LVISV1Dataset', 'GroupSampler', 'DistributedGroupSampler',
+    'DistributedSampler', 'build_dataloader', 'ConcatDataset', 'RepeatDataset',
+    'ClassBalancedDataset', 'WIDERFaceDataset', 'DATASETS', 'PIPELINES',
+    'build_dataset', 'TianchiImageDataset'
 ]
