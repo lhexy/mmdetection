@@ -1,127 +1,12 @@
 import copy
-import time
 import os.path as osp
-from collections import defaultdict
 
 import mmcv
 import numpy as np
 
 from .builder import DATASETS
 from .coco import CocoDataset
-
-
-class Tianchi:
-
-    def __init__(self, annotation_file=None):
-        # load dataset
-        self.dataset = dict()
-        self.anns = dict()
-        self.cats = dict()
-        self.studies, self.dicoms = dict(), dict()
-
-        self.study_uid_id_map = dict()
-        self.dicom_uid_id_map = dict()
-        self.study_to_anns = defaultdict(list)
-        self.study_to_dicoms = defaultdict(list)
-        if annotation_file is not None:
-            print('loading annotations into memory...')
-            tic = time.time()
-            dataset = mmcv.load(annotation_file)
-            assert type(
-                dataset
-            ) == dict, f'annotation file format {type(dataset)} not supported'
-            print('Done (t={:0.2f}s)'.format(time.time() - tic))
-            self.dataset = dataset
-            self.creatIndex()
-
-    def creatIndex(self):
-        # create index
-        print('creating index...')
-        anns, cats, studies, dicoms = {}, {}, {}, {}
-        study_uid_id_map = {}
-        dicom_uid_id_map = {}
-        study_to_anns = defaultdict(list)
-        study_to_dicoms = defaultdict(list)
-
-        # without ground truths, dataset always have "studies" and "dicoms"
-        # but there are no "series_uid" and "instance_uid" in study
-        if 'studies' in self.dataset:
-            for study in self.dataset['studies']:
-                studies[study['id']] = study
-                study_uid_id_map[study['study_uid']] = study['id']
-
-        if 'dicoms' in self.dataset:
-            for dicom in self.dataset['dicoms']:
-                dicoms[dicom['id']] = dicom
-                dicom_uid_id_map[dicom['instance_uid']] = dicom['id']
-
-        if 'dicoms' in self.dataset and 'studies' in self.dataset:
-            for dicom in self.dataset['dicoms']:
-                study_to_dicoms[study_uid_id_map[dicom['study_uid']]].append(
-                    dicom)
-
-        if 'annotations' in self.dataset:
-            for ann in self.dataset['annotations']:
-                study_to_anns[ann['study_id']].append(ann)
-                anns[ann['id']] = ann
-
-        if 'categories' in self.dataset:
-            for cat in self.dataset['categories']:
-                cats[cat['id']] = cat
-
-        print('index created!')
-
-        # create class members
-        self.anns = anns
-        self.cats = cats
-        self.studies = studies
-        self.dicoms = dicoms
-        self.study_uid_id_map = study_uid_id_map
-        self.dicom_uid_id_map = dicom_uid_id_map
-        self.study_to_anns = study_to_anns
-        self.study_to_dicoms = study_to_dicoms
-
-    def get_cat_ids(self):
-        """Returns all category ids."""
-        # return [cat['id'] for cat in self.dataset['categories']]
-        return list(self.cats.keys())
-
-    def get_study_ids(self):
-        """Returns all study ids."""
-        return list(self.studies.keys())
-
-    def get_dicom_ids(self, study_id=None):
-        """Get dicom ids that satisfy given filter conditions.
-
-        Args:
-            study_id: get dicoms for given study id.
-
-        Returns:
-            ids: integer list of dicom ids.
-        """
-        if study_id is None:
-            return list(self.dicoms.keys())
-        else:
-            dicoms = self.study_to_dicoms[study_id]
-            return [dicom['id'] for dicom in dicoms]
-
-    def get_ann_ids(self, study_id):
-        anns = self.study_to_anns[study_id]
-        ann_ids = [ann['id'] for ann in anns]
-        return ann_ids
-
-    def load_study(self, study_id):
-        return self.studies[study_id]
-
-    def load_dicoms(self, ids=[]):
-        if type(ids) == int:
-            ids = [ids]
-        return [self.dicoms[_id] for _id in ids]
-
-    def load_anns(self, ids=[]):
-        if type(ids) == int:
-            ids = [ids]
-        return [self.anns[_id] for _id in ids]
+from .tianchi import Tianchi
 
 
 @DATASETS.register_module()
@@ -251,7 +136,7 @@ class TianchiImageDataset(CocoDataset):
                         'data': {
                             'point': [{
                                 'coord': [320, 76],
-                                'tag': {'disc': 'v1', 'identification': 'T12-L1'},
+                                'tag': {'disc': 'v1', 'identification': 'xx'},
                                 'zIndex': 6}, ...]}
                     }],
                     'instanceUid': 'xxxxx',
@@ -280,13 +165,17 @@ class TianchiImageDataset(CocoDataset):
                     data = dict()
                     data['coord'] = list(
                         map(int, self.bbox2center(bboxes[i][:4])))
-                    data['zIndex'] = default_zIndex
                     data['tag'] = dict()
                     category = self.CLASSES[label]
                     tag = category.split(':')[0].strip()
                     code = category.split(':')[1].strip()
                     data['tag'][tag] = code
-                    point_list.append(data)
+                    data['tag']['identification'] = 'L1-L2'
+                    data['zIndex'] = default_zIndex
+                    data['score'] = float(bboxes[i][4])
+
+                    if data['score'] > 0.7:
+                        point_list.append(data)
             annotation = [
                 dict(annotator=default_annotator, data=dict(point=point_list))
             ]
