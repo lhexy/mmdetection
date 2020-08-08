@@ -11,10 +11,10 @@ from .tianchi import Tianchi
 
 @DATASETS.register_module()
 class TianchiImageDataset(CocoDataset):
-    CLASSES = ('disc: v1', 'disc: v2', 'disc: v3', 'disc: v4', 'disc: v5',
-               'vertebra: v1', 'vertebra: v2')
-    PARTS = ('T12-L1', 'L1', 'L1-L2', 'L2', 'L2-L3', 'L3', 'L3-L4', 'L4',
-             'L4-L5', 'L5', 'L5-S1')
+    CLASSES = ('T12-L1', 'L1', 'L1-L2', 'L2', 'L2-L3', 'L3', 'L3-L4', 'L4',
+               'L4-L5', 'L5', 'L5-S1')
+    TAGS = ('disc: v1', 'disc: v2', 'disc: v3', 'disc: v4', 'disc: v5',
+            'vertebra: v1', 'vertebra: v2')
 
     def load_annotations(self, ann_file):
 
@@ -25,7 +25,7 @@ class TianchiImageDataset(CocoDataset):
 
         data_infos = []
         for study_id in self.study_ids:
-            info = self.tianchi.load_study(study_id)
+            info = self.tianchi.load_studies(ids=[study_id])[0]
 
             if 'instance_uid' in info:
                 dicom_id = self.tianchi.dicom_uid_id_map[info['instance_uid']]
@@ -54,28 +54,37 @@ class TianchiImageDataset(CocoDataset):
         return self._parse_ann_info(ann_info)
 
     def _parse_ann_info(self, ann_info):
+        """Parse point annotion.
+
+        Args:
+            ann_info (list[dict]): Annotation info of an image.
+
+        Returns:
+            dict: A dict containing the following keys: points, labels,
+                parts.
+        """
         gt_points = []
         gt_labels = []
-        part_inds = []
+        gt_tags = []
 
         for i, ann in enumerate(ann_info):
-            if ann['identification'] not in self.PARTS:
+            if ann['identification'] not in self.CLASSES:
                 continue
-            part_idx = self.PARTS.index(ann['identification'])
-            part_inds.append(part_idx)
             gt_points.append(ann['point'])
             gt_labels.append(self.cat2label[ann['category_id']])
+            gt_tags.append(
+                self.TAGS.index(': '.join((ann['tag'], ann['code']))))
 
         if gt_points:
             gt_points = np.array(gt_points, dtype=np.float32)
             gt_labels = np.array(gt_labels, dtype=np.int64)
-            part_inds = np.array(part_inds, dtype=np.int64)
+            gt_tags = np.array(gt_tags, dtype=np.int64)
         else:
             gt_points = np.zeros((0, 2), dtype=np.float32)
             gt_labels = np.array([], dtype=np.int64)
-            part_inds = np.array([], dtype=np.int64)
+            gt_tags = np.array([], dtype=np.int64)
 
-        ann = dict(points=gt_points, labels=gt_labels, part_inds=part_inds)
+        ann = dict(points=gt_points, labels=gt_labels, tags=gt_tags)
 
         return ann
 
@@ -103,8 +112,8 @@ class TianchiImageDataset(CocoDataset):
         results['point_fields'] = []
 
     def bbox2center(self, bbox):
-        center_x = bbox[0] + bbox[2] / 2.
-        center_y = bbox[1] + bbox[3] / 2.
+        center_x = (bbox[0] + bbox[2]) / 2.
+        center_y = (bbox[1] + bbox[3]) / 2.
 
         return [center_x, center_y]
 
@@ -127,6 +136,7 @@ class TianchiImageDataset(CocoDataset):
 
     def _tianchi_format(self, results):
         """
+        Dump to Tianchi lumbar json format.
 
         Output Format:
             [{
@@ -154,28 +164,33 @@ class TianchiImageDataset(CocoDataset):
         for idx in range(len(self)):
             study_id = self.study_ids[idx]
             study_result = dict(version=default_version)
-            study_info = self.tianchi.load_study(study_id)
+            study_info = self.tianchi.load_studies([study_id])[0]
             study_result['studyUid'] = study_info['study_uid']
 
             result = results[idx]
             point_list = []
             for label in range(len(result)):
                 bboxes = result[label]
-                for i in range(bboxes.shape[0]):
-                    data = dict()
-                    data['coord'] = list(
-                        map(int, self.bbox2center(bboxes[i][:4])))
-                    data['tag'] = dict()
-                    category = self.CLASSES[label]
-                    tag = category.split(':')[0].strip()
-                    code = category.split(':')[1].strip()
-                    data['tag'][tag] = code
-                    data['tag']['identification'] = 'L1-L2'
-                    data['zIndex'] = default_zIndex
-                    data['score'] = float(bboxes[i][4])
+                if bboxes.shape[0] == 0:
+                    continue
 
-                    if data['score'] > 0.7:
-                        point_list.append(data)
+                bbox_idx = np.argmax(bboxes[:, -1])
+                data = dict()
+                # default: zIndex
+                data['zIndex'] = default_zIndex
+                # result
+                data['coord'] = list(
+                    map(int, self.bbox2center(bboxes[bbox_idx][:4])))
+                data['tag'] = dict()
+                data['tag']['identification'] = self.CLASSES[label]
+                tag = self.TAGS[int(bboxes[bbox_idx][5])]
+                tag, code = tag.split(': ')
+                data['tag'][tag] = code
+                # optional: score
+                data['score'] = float(bboxes[bbox_idx][-1])
+
+                point_list.append(data)
+
             annotation = [
                 dict(annotator=default_annotator, data=dict(point=point_list))
             ]
@@ -217,9 +232,9 @@ class TianchiImageDataset(CocoDataset):
                 values are corresponding filenames.
         """
         result_files = dict()
-        json_results = self._det2json(results)
-        result_files['bbox'] = f'{outfile_prefix}.bbox.json'
-        mmcv.dump(json_results, result_files['bbox'])
+        # json_results = self._det2json(results)
+        # result_files['bbox'] = f'{outfile_prefix}.bbox.json'
+        # mmcv.dump(json_results, result_files['bbox'])
 
         # write tianchi's result json
         tianchi_json_results = self._tianchi_format(results)

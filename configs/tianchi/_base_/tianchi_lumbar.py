@@ -10,10 +10,7 @@ train_pipeline = [
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size=(512, 512)),
     dict(type='TianchiFormatBundle'),
-    dict(
-        type='Collect',
-        # keys=['img', 'gt_bboxes', 'gt_labels', 'gt_points', 'part_inds'])
-        keys=['img', 'gt_bboxes', 'gt_labels'])
+    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels', 'gt_tags'])
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile'),

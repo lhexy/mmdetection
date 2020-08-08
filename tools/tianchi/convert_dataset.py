@@ -8,13 +8,13 @@ from collections import defaultdict, Counter
 import mmcv
 import numpy as np
 
-PARTS = ('T12-L1', 'L1', 'L1-L2', 'L2', 'L2-L3', 'L3', 'L3-L4', 'L4', 'L4-L5',
-         'L5', 'L5-S1')
 DISC_PARTS = ('T12-L1', 'L1-L2', 'L2-L3', 'L3-L4', 'L4-L5', 'L5-S1')
 VERTEBRA_PARTS = ('L1', 'L2', 'L3', 'L4', 'L5')
 
-CLASSES = ('disc: v1', 'disc: v2', 'disc: v3', 'disc: v4', 'disc: v5',
-           'vertebra: v1', 'vertebra: v2')
+CLASSES = ('T12-L1', 'L1', 'L1-L2', 'L2', 'L2-L3', 'L3', 'L3-L4', 'L4',
+           'L4-L5', 'L5', 'L5-S1')
+TAGS = ('disc: v1', 'disc: v2', 'disc: v3', 'disc: v4', 'disc: v5',
+        'vertebra: v1', 'vertebra: v2')
 
 OFFICIAL_ANNS = {
     'lumbar_train150': 'annotations/lumbar_train150_annotation.json',
@@ -46,38 +46,45 @@ class Series:
         self._series_uid = series_uid
         self._dicoms = self._filter_dicoms(dicoms)
 
-        # set the plane of the series
-        planes = Counter([dicom['plane'] for dicom in self._dicoms])
-        self._plane = planes.most_common(1)[0][0]
-
-        # filter with specified plane
-        self._dicoms = [
-            dicom for dicom in self._dicoms if dicom['plane'] == self._plane
-        ]
-        # series description
-        for dicom in self._dicoms:
-            if 'series_description' in dicom:
-                _description = dicom['series_description']
-                break
-            else:
-                _description = 'none'
-        self._description = _description
-
-        # positions
-        positions = np.stack(
-            [dicom['image_position'] for dicom in self._dicoms])
-        if self._plane == 'sagittal':
-            dim = 0  # x
-        elif self._plane == 'coronal':
-            dim = 1  # y
-        elif self._plane == 'transverse':
-            dim = 2  # z
+        if len(self._dicoms) == 0:
+            self.valid = False
         else:
-            raise ValueError(f'Get wrong plane {self._plane}.')
-        inds = np.argsort(positions[:, dim])
-        self._positions = positions[inds]
-        # sort dicoms with positions
-        self._dicoms = [self._dicoms[idx] for idx in inds]
+            self.valid = True
+
+        if self.valid:
+            # set the plane of the series
+            planes = Counter([dicom['plane'] for dicom in self._dicoms])
+            self._plane = planes.most_common(1)[0][0]
+
+            # filter with specified plane
+            self._dicoms = [
+                dicom for dicom in self._dicoms
+                if dicom['plane'] == self._plane
+            ]
+            # series description
+            for dicom in self._dicoms:
+                if 'series_description' in dicom:
+                    _description = dicom['series_description']
+                    break
+                else:
+                    _description = 'none'
+            self._description = _description
+
+            # positions
+            positions = np.stack(
+                [dicom['image_position'] for dicom in self._dicoms])
+            if self._plane == 'sagittal':
+                dim = 0  # x
+            elif self._plane == 'coronal':
+                dim = 1  # y
+            elif self._plane == 'transverse':
+                dim = 2  # z
+            else:
+                raise ValueError(f'Get wrong plane {self._plane}.')
+            inds = np.argsort(positions[:, dim])
+            self._positions = positions[inds]
+            # sort dicoms with positions
+            self._dicoms = [self._dicoms[idx] for idx in inds]
 
     @property
     def series_uid(self):
@@ -241,9 +248,10 @@ class Study:
         self.series_descriptions = []
         for series_uid, _dicoms_list in series_dict.items():
             series = Series(series_uid, _dicoms_list)
-            self.series_list.append(series)
-            self.series_planes.append(series.plane)
-            self.series_descriptions.append(series.series_description)
+            if series.valid:
+                self.series_list.append(series)
+                self.series_planes.append(series.plane)
+                self.series_descriptions.append(series.series_description)
         self.num_series = len(self.series_list)
 
     @property
@@ -354,44 +362,52 @@ def load_official_anns(points, study_id, ann_id):
     for point in points:
         part = point['tag']['identification']
         if part in DISC_PARTS:
-            assert 'disc' in point['tag']
-            code = point['tag']['disc']
+            tag = 'disc'
+            assert tag in point['tag']
+            code = point['tag'][tag]
             if code == '':
                 code = 'v1'  # labeled as normal if missed
             if ',' in code:
                 # some disc have multi labels
                 for _code in code.split(','):
-                    cat_id = get_cat_id('disc', _code)
+                    cat_id = CLASSES.index(part) + 1
                     _ann = dict(
                         id=ann_id,
                         study_id=study_id,
                         category_id=cat_id,
                         point=point['coord'],
-                        identification=part)
+                        identification=part,
+                        tag=tag,
+                        code=_code)
                     anns_list.append(_ann)
                     ann_id += 1
             else:
-                cat_id = get_cat_id('disc', code)
+                cat_id = CLASSES.index(part) + 1
                 _ann = dict(
                     id=ann_id,
                     study_id=study_id,
                     category_id=cat_id,
                     point=point['coord'],
-                    identification=part)
+                    identification=part,
+                    tag=tag,
+                    code=code)
                 anns_list.append(_ann)
                 ann_id += 1
         elif part in VERTEBRA_PARTS:
-            assert 'vertebra' in point['tag']
-            code = point['tag']['vertebra']
+            tag = 'vertebra'
+            assert tag in point['tag']
+            code = point['tag'][tag]
             if code == '':
                 code = 'v1'  # labeled as normal if missed
-            cat_id = get_cat_id('vertebra', code)
+            cat_id = CLASSES.index(part) + 1
             _ann = dict(
                 id=ann_id,
                 study_id=study_id,
                 category_id=cat_id,
                 point=point['coord'],
-                identification=part)
+                identification=part,
+                tag=tag,
+                code=code)
             anns_list.append(_ann)
             ann_id += 1
 
@@ -518,12 +534,8 @@ def main():
     # Step. 5: set all categories
     categories = []
     for i, category in enumerate(CLASSES):
-        # ('disc: v1', 'disc: v2', 'disc: v3', 'disc: v4', 'disc: v5',
-        #  'vertebra: v1', 'vertebra: v2')
         cat = dict(id=i + 1)  # cat_id starts from 1
         cat['name'] = category
-        cat['tag'] = category.split(':')[0].strip()  # disc, vertebra
-        cat['code'] = category.split(':')[1].strip()  # v1, v2, v3, v4, v5
         categories.append(cat)
 
     # Step. 6 (optional): load official annotations
@@ -560,7 +572,10 @@ def main():
     # convert studies_dict to studies_list
     studies_list = [study.anns() for _, study in studies_dict.items()]
     anns = dict(
-        studies=studies_list, dicoms=dicoms_list, categories=categories)
+        studies=studies_list,
+        series=series_list,
+        dicoms=dicoms_list,
+        categories=categories)
     if with_anns:
         anns['annotations'] = anns_list
     print(f'Writing {ann_file}...')

@@ -1,31 +1,31 @@
 import time
 from collections import defaultdict
-from pycocotools.cocoeval import COCOeval
+
+import numpy as np
 
 
-class TianchiEval(COCOeval):
+class TianchiEval:
+    """
+    Usage:
+        E = TianchiEval(tianchiGt, tianchiDt)
+        E.evaluate()
+        E.accumulate()
+        E.summarize()
+    """
 
-    def _prepare(self):
-        """Prepare ._gts and ._dts for evaluation based on params."""
-        p = self.params
-
-        if p.useCats:
-            gts = self.tianchiGt.load_anns(self.tianchiGt.get_ann_ids())
-            dts = self.tianchiDt.load_anns(self.tianchiDt.get_ann_ids())
+    def __init__(self, tianchiGt=None, tianchiDt=None):
+        self.tianchiGt = tianchiGt
+        self.tianchiDt = tianchiDt
+        # per-study per-part evaluation results
+        self.evalStudies = defaultdict(list)
+        self.eval = {}  # accumulated evaluation results
         self._gts = defaultdict(list)  # gt for evaluation
         self._dts = defaultdict(list)  # dt for evaluation
-        for gt in gts:
-            self._gts[gt['study_id'], gt['category_id']].append(gt)
-        for dt in dts:
-            self._dts[dt['study_id'], dt['category_id']].append(dt)
-        self.eval_stuies = defaultdict(list)
-        self.eval = {}  # accumulated evaluation results
+        # parameters
+        self.params = None
+        self._paramsEval = {}  # parameters for evaluation
+        self.stats = {}  # results summarization
 
-    def evaluate(self):
-        """Run per image evaluation on given images and store
-        results (a list of dict) in self.eval_stuies
-        """
-        tic = time.time()
-        print('Running per image evaluation...')
-
-        self._prepare()
+        if tianchiGt is not None:
+            self.params.study_ids = sorted(tianchiGt.get_study_ids())
+            self.params.cat_ids = sorted(tianchiGt.get_cat_ids())

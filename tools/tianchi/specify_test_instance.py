@@ -103,7 +103,6 @@ def main():
                 study['series_uid'] = _dicom['series_uid']
                 study['instance_uid'] = _dicom['instance_uid']
                 break
-
         new_studies_list.append(study)
 
     ann_infos['studies'] = new_studies_list

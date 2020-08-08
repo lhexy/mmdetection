@@ -14,12 +14,10 @@ class TianchiLoadAnnotations(LoadAnnotations):
                  with_point=True,
                  with_bbox=True,
                  bbox_size=(40, 30),
-                 with_label=True,
-                 with_part_inds=True):
+                 with_label=True):
         super().__init__(with_bbox, with_label)
         self.with_point = with_point
         self.bbox_size = bbox_size
-        self.with_part_inds = with_part_inds
 
     def _load_bboxes(self, results):
         """Convert points to bboxes.
@@ -36,6 +34,12 @@ class TianchiLoadAnnotations(LoadAnnotations):
         results['bbox_fields'].append('gt_bboxes')
         return results
 
+    def _load_labels(self, results):
+        results['gt_labels'] = results['ann_info']['labels'].copy()
+        results['gt_tags'] = results['ann_info']['tags'].copy()
+
+        return results
+
     def _load_points(self, results):
         """Private function to load point annotations.
 
@@ -49,8 +53,6 @@ class TianchiLoadAnnotations(LoadAnnotations):
         ann_info = results['ann_info']
         results['gt_points'] = ann_info['points'].copy()
         results['point_fields'].append('gt_points')
-        if self.with_part_inds:
-            results['part_inds'] = results['ann_info']['part_inds'].copy()
         return results
 
     def __call__(self, results):
@@ -65,7 +67,8 @@ class TianchiFormatBundle(DefaultFormatBundle):
 
     def __call__(self, results):
         results = super().__call__(results)
-        for key in ['gt_points', 'part_inds']:
+        # others
+        for key in ['gt_points', 'gt_tags']:
             if key not in results:
                 continue
             results[key] = DC(to_tensor(results[key]))
