@@ -1,5 +1,3 @@
-import numpy as np
-
 from mmdet.core import bbox2roi
 from ..builder import HEADS
 from .standard_roi_head import StandardRoIHead

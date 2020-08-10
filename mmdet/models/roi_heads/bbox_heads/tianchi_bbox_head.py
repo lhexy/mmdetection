@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.ops.nms import batched_nms
 
 from mmdet.core import multi_apply
 from mmdet.models.builder import HEADS, build_loss
